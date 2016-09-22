@@ -58,7 +58,7 @@ var classPoint = PointClass(x: 1, y: 2)
 var someClassPoint = classPoint
 someClassPoint.x = 3
 
-var structOrigin: PointStruct = setStructToOrigin(point: structPoint)s
+var structOrigin: PointStruct = setStructToOrigin(point: structPoint)
 
 var classOrigin = setClassToOrigin(point: classPoint)
 printPoint(point: classPoint)
