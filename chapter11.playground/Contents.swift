@@ -10,7 +10,6 @@ protocol GeneratorType {
     func next() -> Element?
 }
 
-
 class CountdownGenerator: GeneratorType {
     var element: Int
     
@@ -195,8 +194,93 @@ struct ReverseSequence<T>: SequenceType {
 }
 
 
+/*
+ 
+If you need to map or filter sequences that may produce either infinite results, or many results that you may not be interested in, be sure to use a LazySequence rather than a Sequence. Failing to do so could cause your program to diverge or take much longer than you might expect.
+ */
+extension Sequence {
+    public var lazy: LazySequence<Self> {  get { return self as! LazySequence<Self> }}
+}
 
 
+indirect enum BinarySearchTree<Element: Comparable> {
+    case Leaf
+    case Node(BinarySearchTree<Element>, Element, BinarySearchTree<Element>)
+}
+
+let three: [Int] = Array(IteratorOverOne(_elements: 3))
+let empty: [Int] = Array(IteratorOverOne(_elements: nil))
+
+func one<T>(x: T?) -> AnyIterator<T> {
+    return AnyIterator(IteratorOverOne(_elements: x))
+}
+
+extension BinarySearchTree {
+    init () {
+        self = .Leaf
+    }
+    init (_ value: Element) {
+        self = .Node(.Leaf, value, .Leaf)
+    }
+    var count: Int {
+        switch self { case .Leaf:
+            return 0
+        case let .Node(left, _, right ):
+            return 1 + left . count + right.count }
+    }
+    var elements: [Element] {
+        switch self {
+        case .Leaf:
+            return []
+        case let .Node(left, x, right ):
+            return left .elements + [x] + right.elements }
+    }
+    var isEmpty: Bool {
+        if case .Leaf = self {
+            return true
+        }
+        return false
+    }
+}
+
+extension BinarySearchTree {
+    mutating func insert(x: Element) {
+        switch self {
+        case .Leaf:
+            self = BinarySearchTree(x)
+        case .Node(var left, let y, var right):
+            if x < y { left.insert(x: x) }
+            if x > y { right.insert(x: x) }
+            self = .Node(left, y, right)
+        }
+    }
+}
+
+
+func +<G: IteratorProtocol, H:IteratorProtocol> (first: G, second: H) -> AnyIterator<G.Element> where G.Element == H.Element  {
+    var first = first
+    var second = second
+    return AnyIterator {first.next() ?? second.next() }
+}
+
+extension BinarySearchTree {
+    var inOrder: AnyIterator<Element> {
+        switch self {
+        case .Leaf:
+            print("getsCalledHere\(self)")
+            return AnyIterator{ return nil }
+        case .Node(let left, let x, let right):
+            return left.inOrder + one(x: x) + right.inOrder
+        }
+    }
+}
+
+var copied = BinarySearchTree(5)
+copied.insert(x: 10)
+copied.insert(x: 7)
+copied.insert(x: 9)
+print("yay")
+print(Array(copied.inOrder))
 let reverseSequence = ReverseSequence(array: xs)
 let reverseGenerator = reverseSequence.generate()
 while let i = reverseGenerator.next(){
@@ -209,3 +293,57 @@ let reverseElements = try ReverseSequence(array: xs).map { xs[$0] }
 for x in reverseElements {
     print("Element is \(x)")
 }
+
+protocol Smaller {
+    func smaller() -> AnyIterator<Self>
+}
+
+
+extension Array {
+    func generatorSmallerByOne() -> AnyIterator<[Element]> {
+        var i = 0
+        return AnyIterator {
+            guard i < self.count else { return nil}
+            
+            var result = self
+    
+            result.remove(at: i)
+            i += 1
+            return result
+        }
+    }
+}
+
+
+extension Array {
+    
+    var decompose: (head: Element, tail: [Element])? {
+        return self.count > 0 ? (self[0], Array(self[ 1..<count])) : nil
+    }
+    func smaller1() -> AnyIterator<[Element]> {
+        guard let (head, tail) = self.decompose else {return one(x: nil)}
+        let test = one(x: tail) + AnyIterator<[Element]>(tail.smaller1()).map { smallerTail in
+            [head] + smallerTail
+            }.makeIterator()
+        return test
+    }
+}
+
+print(Array([1, 2, 3].generatorSmallerByOne()))
+
+
+extension Array where Element: Smaller {
+    func smaller() -> AnyIterator<[Element]> {
+    guard let(head, tail) = self.decompose else { return one(x: nil)}
+    let gen1 = one(x: tail).makeIterator()
+    let gen2 = Array<[Element]>(tail.smaller()).map { xs in
+        [head] + xs
+    }.makeIterator()
+    let gen3 = Array<Element>(head.smaller()).map { x in
+            [x] + tail
+    }.makeIterator()
+    return gen1 + gen2 + gen3
+    }
+}
+
+//[1, 2, 3].smaller()
