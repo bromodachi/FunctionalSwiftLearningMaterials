@@ -156,42 +156,43 @@ func +<G:GeneratorType, H: GeneratorType>( first: G, second: H) -> AnyIterator<G
 
 print(6.countDown().next())
 
-protocol SequenceType {
-    associatedtype Generator: GeneratorType
-    func generate() -> Generator
-    func map<T>(  transform: (Self.Generator.Element) throws -> T) rethrows -> [T]
-    func filter ( includeElement: (Self.Generator.Element) throws -> Bool) rethrows -> [Self.Generator.Element]
-    
-}
+//Uncomment to see how to create a custom sequence. Really was supposed to use sequence
+//protocol SequenceType {
+//    associatedtype Generator: GeneratorType
+//    func generate() -> Generator
+//    func map<T>(  transform: (Self.Generator.Element) throws -> T) rethrows -> [T]
+//    func filter ( includeElement: (Self.Generator.Element) throws -> Bool) rethrows -> [Self.Generator.Element]
+//    
+//}
 
 
-struct ReverseSequence<T>: SequenceType {
-    func filter(includeElement: (ReverseSequence.Generator.Element) throws -> Bool) rethrows -> [ReverseSequence.Generator.Element] {
-        var result: [ReverseSequence.Generator.Element] = []
-        let generator = generate()
-        while let i = generator.next() , try includeElement(i){
-            result.append(try i )
-        }
-        return result
-    }
-    func map<T>(  transform: (ReverseSequence.Generator.Element) throws -> T) rethrows -> [T]{
-        var ts: [T] = []
-        let generator = generate()
-        while let i = generator.next(){
-            ts.append(try transform(i))
-        }
-        return ts
-    }
-    
-    var array: [T]
-    init(array: [T]) {
-        self.array = array
-    }
-    
-    func generate() -> CountdownGenerator {
-        return CountdownGenerator(array: array)
-    }
-}
+//struct ReverseSequence<T>: SequenceType {
+//    func filter(includeElement: (ReverseSequence.Generator.Element) throws -> Bool) rethrows -> [ReverseSequence.Generator.Element] {
+//        var result: [ReverseSequence.Generator.Element] = []
+//        let generator = generate()
+//        while let i = generator.next() , try includeElement(i){
+//            result.append(try i )
+//        }
+//        return result
+//    }
+//    func map<T>(  transform: (ReverseSequence.Generator.Element) throws -> T) rethrows -> [T]{
+//        var ts: [T] = []
+//        let generator = generate()
+//        while let i = generator.next(){
+//            ts.append(try transform(i))
+//        }
+//        return ts
+//    }
+//    
+//    var array: [T]
+//    init(array: [T]) {
+//        self.array = array
+//    }
+//    
+//    func generate() -> CountdownGenerator {
+//        return CountdownGenerator(array: array)
+//    }
+//}
 
 
 /*
@@ -281,18 +282,18 @@ copied.insert(x: 7)
 copied.insert(x: 9)
 print("yay")
 print(Array(copied.inOrder))
-let reverseSequence = ReverseSequence(array: xs)
-let reverseGenerator = reverseSequence.generate()
-while let i = reverseGenerator.next(){
-    print("Index \(i) is \(xs[i ])")
-}
+//let reverseSequence = ReverseSequence(array: xs)
+//let reverseGenerator = reverseSequence.generate()
+//while let i = reverseGenerator.next(){
+//    print("Index \(i) is \(xs[i ])")
+//}
 //for i in ReverseSequence(array: xs) {
 //    print("Index \(i) is \(xs[i ])")
 //}
-let reverseElements = try ReverseSequence(array: xs).map { xs[$0] }
-for x in reverseElements {
-    print("Element is \(x)")
-}
+//let reverseElements = try ReverseSequence(array: xs).map { xs[$0] }
+//for x in reverseElements {
+//    print("Element is \(x)")
+//}
 
 protocol Smaller {
     func smaller() -> AnyIterator<Self>
@@ -346,4 +347,76 @@ extension Array where Element: Smaller {
     }
 }
 
+func +<A>(l: AnySequence<A>, r: AnySequence<A>) -> AnySequence<A> {
+    return AnySequence { l.makeIterator() + r.makeIterator() }
+}
 //[1, 2, 3].smaller()
+/*
+ struct AnySequence<Element>: SequenceType {
+ init <G: GeneratorType where G.Element == Element>
+ (_ makeUnderlyingGenerator: () -> G)
+ func generate() -> AnyGenerator<Element> }
+
+ 
+ */
+let s = AnySequence([1, 2, 3]) + AnySequence([4, 5, 6])
+print("First pass: ")
+for x in s {
+    print(x)
+}
+print("Second pass:")
+for x in s {
+    print(x)
+}
+
+
+extension IteratorProtocol {
+    mutating func map<T>(_ transform: @escaping (Element) -> T) -> AnyIterator<T> {
+        let test =  self.next().map(transform)
+        return AnyIterator { test }
+    }
+}
+
+
+public struct JoinedGenerator<Element>: IteratorProtocol {
+    
+    public var generator: AnyIterator<AnyIterator<Element>>
+    public var current: AnyIterator<Element>?
+    
+    public init<
+        G: IteratorProtocol>(_ g: G) where G.Element: IteratorProtocol, G.Element.Element == Element
+        
+    {
+        var g = g
+        self.generator = g.map(AnyIterator.init)
+        self.current = generator.next()
+    }
+    
+    public mutating func next() -> Element? {
+        guard let c = current else { return nil }
+        if let x = c.next() {
+            return x
+        } else {
+            current = generator.next()
+            return next()
+        }
+    }
+}
+
+extension Sequence where Iterator.Element: Sequence {
+     typealias NestedElement = Iterator.Element.Iterator.Element
+    func join() -> AnySequence<NestedElement> {
+        return AnySequence { () -> JoinedGenerator<NestedElement> in
+            var generator = self.makeIterator()
+            return JoinedGenerator(generator.map { $0.makeIterator() })
+        }
+    }
+}
+
+
+extension AnySequence {
+    func flatMap<T, Seq: Sequence>
+        (f: (Element)->Seq)->AnySequence<T> where Seq.Iterator.Element == T {
+        return AnySequence<Seq>(self.map(f)).join()
+    }
+}

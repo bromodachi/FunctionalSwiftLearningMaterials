@@ -30,4 +30,14 @@ func stringReduce(xs: [String]) -> String {
 }
 
 
+extension IteratorProtocol {
+    
+    mutating func map<B>(_ transform: (Element) -> B) -> AnyIterator<B> {
+        return AnyIterator {
+            self.next()
+        }
+    }
+}
+
+
 stringReduce(xs: ["test", "blah", "dog"])

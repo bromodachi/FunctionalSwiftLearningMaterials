@@ -182,6 +182,22 @@ func qsort(input: [Int]) -> [Int] {
     return qsort(input: lesser) + pivArray + qsort(input: greater)
 }
 
+func one<T>(x: T?) -> AnyIterator<T> {
+    return AnyIterator(IteratorOverOne(_elements: x))
+}
+
+
+extension BinarySearchTree {
+    var inOrder: AnyIterator<Element> {
+        switch self {
+        case .Leaf:
+            return AnyIterator{ return nil }
+        case .Node(let left, let x, let right):
+            return left.inOrder
+        }
+    }
+}
+
 extension Trie {
     
     /*
@@ -309,6 +325,8 @@ func autoCompleteString(knownWords: Trie<Character>, word: String) -> [String] {
 let contents = ["cat", "car", "cart", "dog"]
 let trieOfWords = buildStringTrie(words: contents)
 print(autoCompleteString(knownWords: trieOfWords, word: "car"))
+print(copied.contains(x: 5))
+print(copied.elements)
 
 
 
